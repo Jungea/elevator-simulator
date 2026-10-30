@@ -10,7 +10,6 @@ const elements = {
   floorDisplay: document.querySelector("#floor-display"),
   moveButton: document.querySelector("#move-button"),
   restartButton: document.querySelector("#restart-button"),
-  newGameButton: document.querySelector("#new-game-button"),
   modalRestartButton: document.querySelector("#modal-restart-button"),
   gameStatus: document.querySelector("#game-status"),
   capacityLabel: document.querySelector("#capacity-label"),
@@ -19,6 +18,7 @@ const elements = {
   resultKicker: document.querySelector("#result-kicker"),
   resultTitle: document.querySelector("#result-title"),
   resultMessage: document.querySelector("#result-message"),
+  instructionArea: document.querySelector("#instruction-area"),
 };
 
 const SAVE_KEY = "elevator-simulator-save-v1";
@@ -187,7 +187,11 @@ function getSignalClass(passenger) {
 
 function renderFloors() {
   elements.floorList.replaceChildren();
-  renderInputDisplay(floorInput || basementInput ? `${basementInput ? "B" : ""}${floorInput || (basementInput ? "_" : "")}` : "--");
+  elements.floorList.classList.toggle(
+    "is-keypad-ready",
+    !isAnimating && game.status === "playing" && !isStopping,
+  );
+  renderInputDisplay(floorInput || basementInput ? `${basementInput ? "B" : ""}${floorInput}` : "--");
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "B", "0", "C"];
   for (const key of keys) {
     const button = document.createElement("button");
@@ -326,6 +330,7 @@ function render() {
   renderWaiting();
   renderPassengers();
   renderResult();
+  elements.instructionArea.textContent = getInstructionText();
 
   renderDigitalFloor(visualFloor);
   elements.capacityLabel.textContent = `${game.passengers.length} / ${game.stage.capacity}`;
@@ -368,6 +373,15 @@ function render() {
   elements.gameStatus.setAttribute("aria-label", statusLabel);
   elements.gameStatus.classList.toggle("is-clear", game.status === "clear");
   elements.gameStatus.classList.toggle("is-over", game.status === "game_over");
+}
+
+function getInstructionText() {
+  if (game.status === "clear") return "대표님이 무사히 출근했어요!";
+  if (game.status === "game_over") return "운행이 종료되었습니다.";
+  if (isStopping) return "닫힘 버튼을 눌러 다음 층으로 이동하세요.";
+  if (isAnimating) return "운행 중입니다.";
+  if (game.selectedFloor !== null) return "닫힘 버튼을 눌러 목적층을 확정하세요.";
+  return "층을 선택하세요.";
 }
 
 function persistState() {
@@ -479,7 +493,6 @@ elements.moveButton.addEventListener("click", async () => {
   await animateSegment(events);
 });
 elements.restartButton.addEventListener("click", restart);
-elements.newGameButton.addEventListener("click", restart);
 elements.modalRestartButton.addEventListener("click", restart);
 
 render();

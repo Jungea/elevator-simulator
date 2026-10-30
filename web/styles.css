@@ -207,6 +207,20 @@ h2 {
   text-align: center;
 }
 
+.instruction-area {
+  display: grid;
+  min-height: 42px;
+  margin-top: 10px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  background: #111720;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .mission-number {
   white-space: nowrap;
   color: var(--accent);
@@ -289,6 +303,12 @@ h2 {
   min-height: 62px;
   font-size: 1.8rem;
   font-weight: 800;
+}
+
+.floor-list.is-keypad-ready .keypad-button {
+  border-color: #ffffff;
+  color: #ffffff;
+  animation: ready-border-blink 820ms ease-in-out infinite alternate;
 }
 
 .floor-input-display {
