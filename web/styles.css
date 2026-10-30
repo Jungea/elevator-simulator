@@ -429,6 +429,7 @@ h2 {
 
 .floor-display {
   position: relative;
+  overflow: hidden;
   display: grid;
   min-height: 180px;
   place-items: center;
@@ -436,9 +437,41 @@ h2 {
   overflow: hidden;
   border: 1px solid #303b49;
   border-radius: 18px;
-  background:
-    radial-gradient(circle at 50% 40%, rgb(255 204 77 / 8%), transparent 45%),
-    #0b0f15;
+  background: #0b0f15;
+}
+
+.led-background {
+  position: absolute;
+  inset: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(25, 1fr);
+  grid-template-rows: repeat(9, 1fr);
+  gap: 0.015em;
+  font-size: clamp(4.4rem, 7vw, 6.3rem);
+  pointer-events: none;
+}
+
+.led-background-dot {
+  align-self: center;
+  justify-self: center;
+  width: 0.19em;
+  height: 0.19em;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.led-background-dot.is-active {
+  background: var(--red);
+  box-shadow: 0 0 10px var(--red-glow), 0 0 20px var(--red-glow);
+}
+
+.floor-display.is-arrow-blinking .led-background-dot.is-arrow {
+  animation: led-arrow-blink 720ms steps(2, jump-none) infinite;
+}
+
+@keyframes led-arrow-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.15; }
 }
 
 .floor-display strong {
@@ -459,7 +492,9 @@ h2 {
   letter-spacing: 0;
 }
 
+
 .floor-readout {
+  display: none !important;
   display: flex;
   align-items: baseline;
   justify-content: center;
@@ -471,63 +506,84 @@ h2 {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.08em;
+  gap: 0;
   height: 1em;
+}
+
+.digital-readout.full-dot-display {
+  display: grid;
+  grid-template-columns: repeat(18, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 0.12em;
+  width: min(18em, 100%);
+  height: 1em;
+}
+
+.full-dot-display > .dot {
+  align-self: center;
+  justify-self: center;
+  width: 0.13em;
+  height: 0.13em;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px var(--red-glow), 0 0 20px var(--red-glow);
 }
 
 .digital-digit {
   position: relative;
-  display: inline-block;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 0.045em;
   width: 0.62em;
   height: 1em;
 }
 
-.digital-digit .segment {
-  position: absolute;
+.digital-digit .dot {
   display: block;
-  border-radius: 999px;
+  width: 0.13em;
+  height: 0.13em;
+  align-self: center;
+  justify-self: center;
+  border-radius: 50%;
   background: currentColor;
-  opacity: 0.04;
-  box-shadow: 0 0 30px var(--red-glow);
+  opacity: 0;
+  box-shadow: 0 0 12px var(--red-glow);
 }
 
-.digital-digit .segment.is-on {
+.digital-digit .dot.is-on {
   opacity: 1;
+  box-shadow: 0 0 10px var(--red-glow), 0 0 20px var(--red-glow);
 }
 
-.segment-a,
-.segment-g,
-.segment-d {
-  left: 16%;
-  width: 68%;
-  height: 10%;
+.digital-spacer-column {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 0.045em;
+  width: 0.38em;
+  height: 1em;
+  margin: 0 0.03em;
 }
 
-.segment-a { top: 5%; }
-.segment-g { top: 45%; }
-.segment-d { bottom: 5%; }
-
-.segment-b,
-.segment-c,
-.segment-e,
-.segment-f {
-  width: 16%;
-  height: 42%;
+.digital-spacer-dot {
+  align-self: center;
+  width: 0.13em;
+  height: 0.13em;
+  justify-self: center;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
 }
-
-.segment-f,
-.segment-e { left: 1%; }
-.segment-b,
-.segment-c { right: 1%; }
-.segment-f,
-.segment-b { top: 8%; }
-.segment-e,
-.segment-c { bottom: 8%; }
 
 .direction-label {
+  display: none !important;
   position: absolute;
   left: 17px;
-  top: 50%;
+  top: 0;
+  display: flex;
+  align-items: center;
+  height: 100%;
   color: var(--red);
   font-family: "Arial Narrow", Impact, sans-serif;
   font-size: clamp(4.4rem, 7vw, 6.3rem);
@@ -536,16 +592,30 @@ h2 {
   line-height: 1;
   opacity: 0;
   text-shadow: 0 0 30px var(--red-glow);
-  transform: translateY(-50%);
 }
 
 .direction-arrow {
-  display: block;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 0.08em;
   width: clamp(4.4rem, 7vw, 6.3rem);
   height: clamp(4.4rem, 7vw, 6.3rem);
-  color: currentColor;
-  stroke-width: 2.5;
-  filter: drop-shadow(0 0 30px var(--red-glow));
+}
+
+.direction-dot {
+  align-self: center;
+  justify-self: center;
+  width: 0.13em;
+  height: 0.13em;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+}
+
+.direction-dot.is-on {
+  opacity: 1;
+  box-shadow: 0 0 6px var(--red-glow);
 }
 
 .direction-label.is-down {

@@ -5,6 +5,8 @@ const elements = {
   waitingList: document.querySelector("#waiting-list"),
   passengerList: document.querySelector("#passenger-list"),
   currentFloor: document.querySelector("#current-floor"),
+  ledBackground: document.querySelector("#led-background"),
+  floorDisplay: document.querySelector("#floor-display"),
   moveButton: document.querySelector("#move-button"),
   restartButton: document.querySelector("#restart-button"),
   modalRestartButton: document.querySelector("#modal-restart-button"),
@@ -31,17 +33,23 @@ let isStopping = false;
 const FLOOR_TRAVEL_MS = 1200;
 const STOP_STEP_MS = 140;
 
-const DIGITAL_SEGMENTS = {
-  0: ["a", "b", "c", "d", "e", "f"],
-  1: ["b", "c"],
-  2: ["a", "b", "g", "e", "d"],
-  3: ["a", "b", "c", "d", "g"],
-  4: ["f", "g", "b", "c"],
-  5: ["a", "f", "g", "c", "d"],
-  6: ["a", "f", "g", "e", "c", "d"],
-  7: ["a", "b", "c"],
-  8: ["a", "b", "c", "d", "e", "f", "g"],
-  9: ["a", "b", "c", "d", "f", "g"],
+const DOT_MATRIX = {
+  0: ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+  1: ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+  2: ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+  3: ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+  4: ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+  5: ["11111", "10000", "10000", "11110", "00001", "00001", "11110"],
+  6: ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+  7: ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+  8: ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+  9: ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
+  "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+};
+
+const DOT_ARROWS = {
+  up: ["00100", "01010", "10001", "00000", "00000", "00000", "00000"],
+  down: ["00000", "00000", "00000", "10001", "01010", "00100", "00000"],
 };
 
 const PASSENGER_EMOJIS = [
@@ -64,22 +72,81 @@ function getPassengerEmoji(passenger) {
 }
 
 function renderDigitalFloor(floor) {
-  const value = floor < 0 ? `B${Math.abs(floor)}` : String(floor).padStart(2, "0");
+  const value = floor < 0 ? `B${Math.abs(floor)}` : String(floor);
   elements.currentFloor.replaceChildren();
   elements.currentFloor.setAttribute("aria-label", `${floor}층`);
-
-  for (const character of value) {
+  elements.currentFloor.classList.remove("full-dot-display");
+  for (const [index, character] of [...value].entries()) {
     const digit = document.createElement("span");
     digit.className = "digital-digit";
-    digit.setAttribute("aria-hidden", "true");
-    const activeSegments = DIGITAL_SEGMENTS[character] ?? [];
-
-    for (const segmentName of ["a", "b", "c", "d", "e", "f", "g"]) {
-      const segment = document.createElement("i");
-      segment.className = `segment segment-${segmentName}${activeSegments.includes(segmentName) ? " is-on" : ""}`;
-      digit.append(segment);
+    const matrix = DOT_MATRIX[character] ?? DOT_MATRIX[0];
+    for (const row of matrix) {
+      for (const isOn of row) {
+        const dot = document.createElement("i");
+        dot.className = `dot${isOn === "1" ? " is-on" : ""}`;
+        digit.append(dot);
+      }
     }
     elements.currentFloor.append(digit);
+    if (index === 0) {
+      const spacer = document.createElement("span");
+      spacer.className = "digital-spacer-column";
+      elements.currentFloor.append(spacer);
+    }
+  }
+}
+
+function renderLedBackground(floor, direction = 0) {
+  elements.ledBackground.replaceChildren();
+  const value = floor < 0 ? `B${Math.abs(floor)}` : String(floor);
+  const active = new Set();
+  const arrowActive = new Set();
+  const offsets = value.length === 1 ? [13, 13] : [7, 13];
+  [...value].forEach((character, characterIndex) => {
+    const matrix = DOT_MATRIX[character] ?? DOT_MATRIX[0];
+    matrix.forEach((row, rowIndex) => {
+      [...row].forEach((cell, columnIndex) => {
+        if (cell === "1") active.add(`${rowIndex + 1}:${offsets[characterIndex] + columnIndex}`);
+      });
+    });
+  });
+  const upArrow = ["00100", "01010", "10001", "00000", "00000"];
+  const downArrow = ["00000", "00000", "10001", "01010", "00100"];
+  const arrows = direction > 0
+    ? [[upArrow, 1]]
+    : direction < 0
+      ? [[downArrow, 19]]
+      : [];
+  for (const [matrix, offset] of arrows) {
+    matrix.forEach((row, rowIndex) => {
+      [...row].forEach((cell, columnIndex) => {
+        if (cell === "1") {
+          const key = `${rowIndex + 2}:${offset + columnIndex}`;
+          active.add(key);
+          arrowActive.add(key);
+        }
+      });
+    });
+  }
+  for (let row = 0; row < 9; row += 1) {
+    for (let column = 0; column < 25; column += 1) {
+      const dot = document.createElement("i");
+      const key = `${row}:${column}`;
+      dot.className = `led-background-dot${active.has(key) ? " is-active" : ""}${arrowActive.has(key) ? " is-arrow" : ""}`;
+      elements.ledBackground.append(dot);
+    }
+  }
+}
+
+function renderDotArrow(element, matrix) {
+  element.replaceChildren();
+  element.classList.add("dot-arrow-preview");
+  for (const row of matrix) {
+    for (const isOn of row) {
+      const dot = document.createElement("i");
+      dot.className = `direction-preview-dot${isOn === "1" ? " is-on" : ""}`;
+      element.append(dot);
+    }
   }
 }
 
@@ -216,6 +283,7 @@ function renderResult() {
 }
 
 function render() {
+  renderLedBackground(visualFloor, isAnimating ? travelDirection : 0);
   renderFloors();
   renderWaiting();
   renderPassengers();
@@ -233,11 +301,20 @@ function render() {
   );
   const hasDirection = isAnimating && travelDirection !== 0 && !isAtDestinationStop;
   const isMoving = hasDirection && !isStopping;
-  const directionIcon = document.createElement("i");
-  directionIcon.dataset.lucide = travelDirection > 0 ? "arrow-up" : "arrow-down";
+  elements.floorDisplay.classList.toggle("is-arrow-blinking", isMoving);
+  const directionIcon = document.createElement("span");
   directionIcon.className = "direction-arrow";
   directionIcon.setAttribute("aria-hidden", "true");
+  const arrowMatrix = DOT_ARROWS[travelDirection > 0 ? "up" : "down"];
+  for (const row of arrowMatrix) {
+    for (const isOn of row) {
+      const dot = document.createElement("i");
+      dot.className = `direction-dot${isOn === "1" ? " is-on" : ""}`;
+      directionIcon.append(dot);
+    }
+  }
   elements.directionLabel.replaceChildren(directionIcon);
+  elements.directionLabel.hidden = !hasDirection;
   elements.directionLabel.classList.toggle("is-down", hasDirection && travelDirection < 0);
   elements.directionLabel.classList.toggle("is-visible", hasDirection);
   elements.directionLabel.classList.toggle("is-moving", isMoving);
@@ -269,6 +346,7 @@ async function animateSegment(events) {
   render();
 
   for (const event of travelEvents) {
+    if (event.type === "travel" && event.floor === 0) continue;
     visualFloor = event.floor;
     displayedPassengers = event.type === "travel" && event.passengers
       ? event.passengers

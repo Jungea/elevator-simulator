@@ -226,6 +226,8 @@ func _animate_segment(events: Array[Dictionary]) -> void:
 	_render()
 	for event in events:
 		if event["type"] == "travel":
+			if event["floor"] == 0:
+				continue
 			visual_floor = event["floor"]
 			_render()
 			await get_tree().create_timer(FLOOR_TRAVEL_SECONDS).timeout

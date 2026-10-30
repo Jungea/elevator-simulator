@@ -96,6 +96,14 @@ export class ElevatorGame {
 
   }
 
+  floorSequence() {
+    const floors = [];
+    for (let floor = this.stage.minFloor ?? 1; floor <= (this.stage.maxFloor ?? this.stage.floorCount); floor += 1) {
+      if (floor !== 0) floors.push(floor);
+    }
+    return floors;
+  }
+
   selectFloor(floor) {
     if (this.status !== "playing") return false;
     if (!Number.isInteger(floor)) return false;
@@ -124,15 +132,19 @@ export class ElevatorGame {
 
     while (this.status === "playing" && this.currentFloor !== this.targetFloor) {
       const nextFloor = this.findNextStop(this.targetFloor);
-      const distance = Math.abs(nextFloor - this.currentFloor);
-      const direction = Math.sign(nextFloor - this.currentFloor);
+      const floors = this.floorSequence();
+      const currentIndex = floors.indexOf(this.currentFloor);
+      const targetIndex = floors.indexOf(nextFloor);
+      const direction = Math.sign(targetIndex - currentIndex);
+      const distance = Math.abs(targetIndex - currentIndex);
       let passedDistance = 0;
 
       for (
-        let floor = this.currentFloor + direction;
-        direction > 0 ? floor <= nextFloor : floor >= nextFloor;
-        floor += direction
+        let index = currentIndex + direction;
+        direction > 0 ? index <= targetIndex : index >= targetIndex;
+        index += direction
       ) {
+        const floor = floors[index];
         const travelEvent = { type: "travel", floor };
         events.push(travelEvent);
         if (floor !== nextFloor) {
@@ -197,15 +209,19 @@ export class ElevatorGame {
     }
 
     const nextFloor = this.findNextStop(this.targetFloor);
-    const distance = Math.abs(nextFloor - this.currentFloor);
-    const direction = Math.sign(nextFloor - this.currentFloor);
+    const floors = this.floorSequence();
+    const currentIndex = floors.indexOf(this.currentFloor);
+    const targetIndex = floors.indexOf(nextFloor);
+    const direction = Math.sign(targetIndex - currentIndex);
+    const distance = Math.abs(targetIndex - currentIndex);
     let passedDistance = 0;
 
     for (
-      let floor = this.currentFloor + direction;
-      direction > 0 ? floor <= nextFloor : floor >= nextFloor;
-      floor += direction
+      let index = currentIndex + direction;
+      direction > 0 ? index <= targetIndex : index >= targetIndex;
+      index += direction
     ) {
+      const floor = floors[index];
       const travelEvent = { type: "travel", floor };
       events.push(travelEvent);
         if (floor !== nextFloor) {
@@ -405,13 +421,17 @@ export class ElevatorGame {
   }
 
   findNextStop(targetFloor) {
-    const direction = Math.sign(targetFloor - this.currentFloor);
+    const floors = this.floorSequence();
+    const currentIndex = floors.indexOf(this.currentFloor);
+    const targetIndex = floors.indexOf(targetFloor);
+    const direction = Math.sign(targetIndex - currentIndex);
 
     for (
-      let floor = this.currentFloor + direction;
-      direction > 0 ? floor <= targetFloor : floor >= targetFloor;
-      floor += direction
+      let index = currentIndex + direction;
+      direction > 0 ? index <= targetIndex : index >= targetIndex;
+      index += direction
     ) {
+      const floor = floors[index];
       if (floor === targetFloor) return floor;
 
       const alightingCount = this.passengers.filter(
