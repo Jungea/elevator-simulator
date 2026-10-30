@@ -1,0 +1,22 @@
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Vercel local project metadata
+.vercel/
+
+# Godot generated files (Steam project will be added later)
+.godot/
+steam/.godot/
+steam/.godot/export_credentials.cfg
+
+# Exported builds
+builds/
+

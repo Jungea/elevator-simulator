@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="직원들의 상태를 관리하며 대표를 혼자 대표실까지 모시는 엘리베이터 경로 퍼즐"
+    />
+    <title>엘베 시뮬레이터</title>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">E</span>
+          <div>
+            <p class="eyebrow">ELEVATOR ROUTE PUZZLE</p>
+            <h1>엘베 시뮬레이터</h1>
+          </div>
+        </div>
+        <div class="topbar-actions">
+          <span id="game-status" class="status-badge" title="운행 중" aria-label="운행 중"></span>
+          <button id="restart-button" class="text-button" type="button" title="다시 시작" aria-label="다시 시작">
+            <i data-lucide="refresh-cw" aria-hidden="true"></i>
+          </button>
+        </div>
+      </header>
+
+      <section class="mission-strip" aria-label="게임 목표">
+        <span class="mission-number">MISSION 01</span>
+        <p><strong>대표만 남겨</strong> 10층 대표실에 내려주세요.</p>
+        <span class="mission-note">직원 상태가 0이 되면 업무방해!</span>
+      </section>
+
+      <div class="game-grid">
+        <section class="panel building-panel" aria-labelledby="building-title">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">FLOOR CONTROL</p>
+              <h2 id="building-title">층 버튼</h2>
+            </div>
+          </div>
+          <div id="floor-list" class="floor-list"></div>
+          <div class="floor-confirm">
+            <button id="move-button" class="move-button" type="button" aria-label="닫기" title="닫기" disabled>
+              <span class="door-close-icon" aria-hidden="true">
+                <i data-lucide="chevron-right"></i>
+                <i data-lucide="letter-i" class="door-center-line"></i>
+                <i data-lucide="chevron-left"></i>
+              </span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel elevator-panel" aria-labelledby="elevator-title">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">ELEVATOR</p>
+              <h2 id="elevator-title">탑승객</h2>
+            </div>
+            <span id="capacity-label" class="capacity-label"></span>
+          </div>
+
+          <div id="floor-display" class="floor-display" aria-live="polite">
+            <strong class="floor-readout">
+              <span id="current-floor" class="digital-readout" aria-label="1"></span>
+            </strong>
+            <span id="direction-label" class="direction-label" aria-label="이동 방향">
+            </span>
+          </div>
+
+          <div id="passenger-list" class="passenger-list"></div>
+
+          <div class="mental-legend">
+            <span><i class="signal green"></i> 안정</span>
+            <span><i class="signal yellow"></i> 주의</span>
+            <span><i class="signal red"></i> 위험</span>
+          </div>
+        </section>
+
+        <section class="panel waiting-panel" aria-labelledby="waiting-title">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">WAITING AREA</p>
+              <h2 id="waiting-title">대기 직원</h2>
+            </div>
+            <span class="waiting-private" title="목적층 비공개" aria-label="목적층 비공개">
+              <i data-lucide="circle-help" aria-hidden="true"></i>
+            </span>
+          </div>
+          <div id="waiting-list" class="waiting-list"></div>
+        </section>
+
+      </div>
+
+    </main>
+
+    <div id="result-modal" class="result-modal" hidden>
+      <div class="result-card" role="dialog" aria-modal="true" aria-labelledby="result-title">
+        <span id="result-kicker" class="result-kicker"></span>
+        <h2 id="result-title"></h2>
+        <p id="result-message"></p>
+        <button id="modal-restart-button" class="move-button" type="button">다시 도전</button>
+      </div>
+    </div>
+
+    <script type="module" src="./src/main.mjs"></script>
+  </body>
+</html>
+
