@@ -8,22 +8,17 @@ export function createPrototypeStage() {
     id: "release-0-prototype",
     name: "월요일의 대표님",
     floorCount: 10,
+    minFloor: -2,
+    maxFloor: 10,
     ceoFloor: 10,
     capacity: 3,
-    initialFloor: 1,
+    initialFloor: -2,
     initialPassengers: [
       {
         id: "ceo",
         type: PASSENGER_TYPE.CEO,
         name: "대표",
         destinationFloor: 10,
-      },
-      {
-        id: "employee-a",
-        type: PASSENGER_TYPE.EMPLOYEE,
-        name: "김대리",
-        destinationFloor: 3,
-        maxDistance: 10,
       },
     ],
     waitingPassengers: {
@@ -81,6 +76,7 @@ export class ElevatorGame {
 
   reset() {
     this.status = "playing";
+    this.failureReason = null;
     this.currentFloor = this.stage.initialFloor;
     this.selectedFloor = null;
     this.targetFloor = null;
@@ -92,7 +88,7 @@ export class ElevatorGame {
     );
     this.waitingPassengers = {};
 
-    for (let floor = 1; floor <= this.stage.floorCount; floor += 1) {
+    for (let floor = this.stage.minFloor ?? 1; floor <= (this.stage.maxFloor ?? this.stage.floorCount); floor += 1) {
       this.waitingPassengers[floor] = clone(
         this.stage.waitingPassengers[floor] ?? [],
       );
@@ -103,7 +99,7 @@ export class ElevatorGame {
   selectFloor(floor) {
     if (this.status !== "playing") return false;
     if (!Number.isInteger(floor)) return false;
-    if (floor < 1 || floor > this.stage.floorCount) return false;
+    if (floor < (this.stage.minFloor ?? 1) || floor > (this.stage.maxFloor ?? this.stage.floorCount)) return false;
     if (floor === this.currentFloor) return false;
 
     this.selectedFloor = floor;
@@ -130,17 +126,35 @@ export class ElevatorGame {
       const nextFloor = this.findNextStop(this.targetFloor);
       const distance = Math.abs(nextFloor - this.currentFloor);
       const direction = Math.sign(nextFloor - this.currentFloor);
+      let passedDistance = 0;
 
       for (
         let floor = this.currentFloor + direction;
         direction > 0 ? floor <= nextFloor : floor >= nextFloor;
         floor += direction
       ) {
-        events.push({ type: "travel", floor });
+        const travelEvent = { type: "travel", floor };
+        events.push(travelEvent);
+        if (floor !== nextFloor) {
+          const passThrough = this.applyTravelDistance(1, floor);
+          if (passThrough?.type === "distance") {
+            travelEvent.passengers = passThrough.passengers;
+            events.push(passThrough);
+          } else if (passThrough) {
+            events.push(passThrough);
+          }
+          if (passThrough?.type === "game_over") {
+            this.currentFloor = floor;
+            break;
+          }
+          passedDistance += 1;
+        }
       }
 
+      if (this.status !== "playing") break;
+
       this.currentFloor = nextFloor;
-      events.push(...this.processStop(nextFloor, distance));
+      events.push(...this.processStop(nextFloor, distance - passedDistance));
     }
 
     if (this.status === "playing") {
@@ -185,17 +199,40 @@ export class ElevatorGame {
     const nextFloor = this.findNextStop(this.targetFloor);
     const distance = Math.abs(nextFloor - this.currentFloor);
     const direction = Math.sign(nextFloor - this.currentFloor);
+    let passedDistance = 0;
 
     for (
       let floor = this.currentFloor + direction;
       direction > 0 ? floor <= nextFloor : floor >= nextFloor;
       floor += direction
     ) {
-      events.push({ type: "travel", floor });
+      const travelEvent = { type: "travel", floor };
+      events.push(travelEvent);
+        if (floor !== nextFloor) {
+          const passThrough = this.applyTravelDistance(1, floor);
+          if (passThrough?.type === "game_over") {
+            events.push(passThrough);
+            this.currentFloor = floor;
+            this.routeActive = false;
+            this.targetFloor = null;
+            return events;
+          }
+          if (passThrough?.type === "distance") {
+            travelEvent.passengers = passThrough.passengers;
+            events.push(passThrough);
+          } else if (passThrough) {
+            events.push(passThrough);
+          }
+          passedDistance += 1;
+        }
     }
 
     this.currentFloor = nextFloor;
-    this.pendingStop = { floor: nextFloor, distance, stage: "alight" };
+    this.pendingStop = {
+      floor: nextFloor,
+      distance: distance - passedDistance,
+      stage: "alight",
+    };
     events.push({
       type: "stop",
       floor: nextFloor,
@@ -211,6 +248,14 @@ export class ElevatorGame {
 
     const { floor, distance } = this.pendingStop;
     if (this.pendingStop.stage === "alight") {
+      if (floor === this.stage.ceoFloor && this.passengers.length > 1) {
+        this.status = "game_over";
+        this.pendingStop = null;
+        this.routeActive = false;
+        this.targetFloor = null;
+        this.failureReason = "ceo_office_infiltration";
+        return [{ type: "game_over", floor, reason: this.failureReason }];
+      }
       const alighting = this.passengers.filter(
         (passenger) =>
           passenger.type === PASSENGER_TYPE.EMPLOYEE &&
@@ -265,6 +310,7 @@ export class ElevatorGame {
 
       if (exhausted.length > 0) {
         this.status = "game_over";
+        this.failureReason = "employee_exhausted";
         this.pendingStop = null;
         this.routeActive = false;
         this.targetFloor = null;
@@ -326,6 +372,38 @@ export class ElevatorGame {
     return [];
   }
 
+  applyTravelDistance(distance, floor) {
+    const employees = this.passengers.filter(
+      (passenger) => passenger.type === PASSENGER_TYPE.EMPLOYEE,
+    );
+    for (const employee of employees) {
+      employee.remainingDistance -= distance;
+    }
+    const exhausted = employees.filter(
+      (employee) => employee.remainingDistance <= 0,
+    );
+    if (exhausted.length === 0) {
+      return employees.length > 0
+        ? {
+            type: "distance",
+            floor,
+            distance,
+            passengers: clone(this.passengers),
+            employees: clone(employees),
+            message: `통과층 이동으로 탑승 직원의 상태가 ${distance}만큼 감소했습니다.`,
+          }
+        : null;
+    }
+
+    this.status = "game_over";
+    return {
+      type: "game_over",
+      floor,
+      passengers: clone(exhausted),
+      message: `${exhausted.map((passenger) => passenger.name).join(", ")}의 상태가 바닥났습니다.`,
+    };
+  }
+
   findNextStop(targetFloor) {
     const direction = Math.sign(targetFloor - this.currentFloor);
 
@@ -367,6 +445,13 @@ export class ElevatorGame {
         message: `${floor}F에 정차했습니다. (${distance}층 이동)`,
       },
     ];
+
+    if (floor === this.stage.ceoFloor && this.passengers.length > 1) {
+      this.status = "game_over";
+      this.failureReason = "ceo_office_infiltration";
+      events.push({ type: "game_over", floor, reason: this.failureReason });
+      return events;
+    }
 
     const alighting = this.passengers.filter(
       (passenger) =>
@@ -423,6 +508,7 @@ export class ElevatorGame {
     );
     if (exhausted.length > 0) {
       this.status = "game_over";
+      this.failureReason = "employee_exhausted";
       events.push({
         type: "game_over",
         floor,

@@ -5,7 +5,7 @@ import { ElevatorGame } from "../src/game.mjs";
 
 test("현재 층은 목표층으로 선택할 수 없다", () => {
   const game = new ElevatorGame();
-  assert.equal(game.selectFloor(1), false);
+  assert.equal(game.selectFloor(-2), false);
   assert.equal(game.selectedFloor, null);
 });
 
@@ -43,7 +43,25 @@ test("중간 정차마다 닫기 전에는 다음 층으로 진행하지 않는�
 });
 
 test("목적층 도착 직원은 상태 차감 전에 하차한다", () => {
-  const game = new ElevatorGame();
+  const game = new ElevatorGame({
+    id: "alight-before-distance-test",
+    name: "하차 순서 테스트",
+    floorCount: 5,
+    ceoFloor: 5,
+    capacity: 2,
+    initialFloor: 1,
+    initialPassengers: [
+      { id: "ceo", type: "ceo", name: "대표", destinationFloor: 5 },
+      {
+        id: "employee",
+        type: "employee",
+        name: "직원",
+        destinationFloor: 3,
+        maxDistance: 2,
+      },
+    ],
+    waitingPassengers: {},
+  });
   game.selectFloor(3);
   game.move();
 
@@ -55,7 +73,7 @@ test("목적층 도착 직원은 상태 차감 전에 하차한다", () => {
 
 test("프로토타입 스테이지에 클리어 경로가 존재한다", () => {
   const game = new ElevatorGame();
-  const route = [3, 1, 5, 10, 2, 10];
+  const route = [6, 1, 10];
 
   for (const floor of route) {
     game.selectFloor(floor);
@@ -140,5 +158,35 @@ test("상태가 0 이하가 되면 즉시 게임 오버다", () => {
   game.move();
 
   assert.equal(game.status, "game_over");
+});
+
+test("정차하지 않고 통과하는 층에서도 이동거리 상태가 감소한다", () => {
+  const game = new ElevatorGame({
+    id: "pass-through-distance-test",
+    name: "통과층 상태 테스트",
+    floorCount: 6,
+    ceoFloor: 6,
+    capacity: 2,
+    initialFloor: 1,
+    initialPassengers: [
+      { id: "ceo", type: "ceo", name: "대표", destinationFloor: 6 },
+      {
+        id: "employee",
+        type: "employee",
+        name: "직원",
+        destinationFloor: 6,
+        maxDistance: 6,
+      },
+    ],
+    waitingPassengers: {},
+  });
+
+  game.selectFloor(5);
+  const events = game.beginMove();
+
+  assert.equal(game.currentFloor, 5);
+  assert.equal(game.passengers[1].remainingDistance, 3);
+  assert.equal(events.filter((event) => event.type === "distance").length, 3);
+  assert.equal(game.status, "playing");
 });
 

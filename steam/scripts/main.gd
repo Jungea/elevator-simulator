@@ -124,20 +124,27 @@ func _render() -> void:
 	close_button.disabled = game.status != ElevatorGameState.STATUS_PLAYING or (is_animating and not is_stopping) or (not is_stopping and game.selected_floor == null)
 	close_button.modulate = Color("#ffffff") if is_stopping or game.selected_floor != null else Color("#687382")
 	status_label.text = "운행 중" if is_animating else "대기 중"
-	result_label.text = "대표실 도착 완료" if game.status == ElevatorGameState.STATUS_CLEAR else "업무방해 발생" if game.status == ElevatorGameState.STATUS_GAME_OVER else ""
+	if game.status == ElevatorGameState.STATUS_CLEAR:
+		result_label.text = "대표님이 무사히 출근했어요!"
+	elif game.status == ElevatorGameState.STATUS_GAME_OVER:
+		result_label.text = "산업 스파이!\n직원은 대표실에 들어오면 안 됩니다." if game.failure_reason == "ceo_office_infiltration" else "월급루팡!\n남은 층수 안에 직원을 목표 층수로 이동시켜야 합니다."
+	else:
+		result_label.text = ""
 
 func _render_floors() -> void:
 	for child in floor_grid.get_children():
 		child.queue_free()
-	var midpoint := ceili(float(game.floor_count) / 2.0)
 	var order: Array[int] = []
-	for floor in range(midpoint, 0, -1):
-		order.append(floor)
-		if floor + midpoint <= game.floor_count:
-			order.append(floor + midpoint)
+	var left_column: Array[int] = [4, 3, 2, 1, -1, -2]
+	var right_column: Array[int] = [10, 9, 8, 7, 6, 5]
+	for row in range(6):
+		if left_column[row] >= game.min_floor and left_column[row] <= game.floor_count:
+			order.append(left_column[row])
+		if right_column[row] >= game.min_floor and right_column[row] <= game.floor_count:
+			order.append(right_column[row])
 	for floor in order:
 		var button := Button.new()
-		button.text = str(floor)
+		button.text = "%d" % floor if floor > 0 else "B%d" % absi(floor)
 		button.custom_minimum_size = Vector2(92, 76)
 		var is_moving_target := is_animating and floor == active_target
 		var is_current := is_moving_target or (not is_animating and floor == game.current_floor)
@@ -157,9 +164,12 @@ func _render_floors() -> void:
 func _render_waiting() -> void:
 	for child in waiting_list.get_children():
 		child.queue_free()
-	for floor in range(game.floor_count, 0, -1):
+	for floor in range(game.floor_count, game.min_floor - 1, -1):
+		if floor == 0:
+			continue
 		var label := Label.new()
-		label.text = "%dF    %d명" % [floor, game.waiting_count(floor)] if floor != game.ceo_floor else "%dF    대표실" % floor
+		var floor_name := "%dF" % floor if floor > 0 else "B%d" % absi(floor)
+		label.text = "%s    %d명" % [floor_name, game.waiting_count(floor)] if floor != game.ceo_floor else "%s    대표실" % floor_name
 		waiting_list.add_child(label)
 
 func _render_passengers() -> void:

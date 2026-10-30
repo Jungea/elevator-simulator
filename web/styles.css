@@ -189,8 +189,8 @@ h2 {
 }
 
 .mission-strip {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+  display: flex;
+  justify-content: center;
   align-items: center;
   gap: 22px;
   margin-top: 16px;
@@ -204,6 +204,7 @@ h2 {
   margin-bottom: 0;
   color: #e5e8ed;
   font-size: 0.92rem;
+  text-align: center;
 }
 
 .mission-number {
@@ -688,7 +689,7 @@ h2 {
 
 .mental-legend {
   justify-content: flex-end;
-  margin-top: 14px;
+  margin: 14px 0 22px;
 }
 
 .empty-cabin {
@@ -871,6 +872,7 @@ h2 {
   margin-bottom: 24px;
   color: var(--muted);
   line-height: 1.65;
+  white-space: pre-line;
 }
 
 .result-card .move-button {

@@ -22,6 +22,7 @@ let visualFloor = game.currentFloor;
 let isAnimating = false;
 let travelDirection = 0;
 let showResult = false;
+let displayedPassengers = null;
 let activeTargetFloor = null;
 let isAtDestinationStop = false;
 let isSelectingNextFloor = true;
@@ -63,7 +64,7 @@ function getPassengerEmoji(passenger) {
 }
 
 function renderDigitalFloor(floor) {
-  const value = String(floor).padStart(2, "0");
+  const value = floor < 0 ? `B${Math.abs(floor)}` : String(floor).padStart(2, "0");
   elements.currentFloor.replaceChildren();
   elements.currentFloor.setAttribute("aria-label", `${floor}층`);
 
@@ -91,13 +92,14 @@ function getSignalClass(passenger) {
 
 function renderFloors() {
   elements.floorList.replaceChildren();
-  const midpoint = Math.ceil(game.stage.floorCount / 2);
+  const minFloor = game.stage.minFloor ?? 1;
+  const maxFloor = game.stage.maxFloor ?? game.stage.floorCount;
+  const leftColumn = [4, 3, 2, 1, -1, -2].filter((floor) => floor >= minFloor && floor <= maxFloor);
+  const rightColumn = [10, 9, 8, 7, 6, 5].filter((floor) => floor >= minFloor && floor <= maxFloor);
   const floorOrder = [];
-
-  for (let floor = midpoint; floor >= 1; floor -= 1) {
-    const upperFloor = floor + midpoint;
-    if (floor <= game.stage.floorCount) floorOrder.push(floor);
-    if (upperFloor <= game.stage.floorCount) floorOrder.push(upperFloor);
+  for (let row = 0; row < Math.max(leftColumn.length, rightColumn.length); row += 1) {
+    if (leftColumn[row] !== undefined) floorOrder.push(leftColumn[row]);
+    if (rightColumn[row] !== undefined) floorOrder.push(rightColumn[row]);
   }
 
   for (const floor of floorOrder) {
@@ -119,7 +121,7 @@ function renderFloors() {
     button.disabled = isCurrentFloor || game.status !== "playing" || isAnimating;
     button.setAttribute("aria-pressed", String(isSelected));
     button.innerHTML = `
-      <span class="floor-number">${floor}</span>
+      <span class="floor-number">${floor < 0 ? `B${Math.abs(floor)}` : floor}</span>
     `;
     button.setAttribute(
       "aria-label",
@@ -137,13 +139,16 @@ function renderFloors() {
 function renderWaiting() {
   elements.waitingList.replaceChildren();
 
-  for (let floor = game.stage.floorCount; floor >= 1; floor -= 1) {
+  const minFloor = game.stage.minFloor ?? 1;
+  const maxFloor = game.stage.maxFloor ?? game.stage.floorCount;
+  for (let floor = maxFloor; floor >= minFloor; floor -= 1) {
+    if (floor === 0) continue;
     const row = document.createElement("div");
     const waitingCount = game.getWaitingCount(floor);
     row.className = "waiting-row";
     row.classList.toggle("is-current", floor === visualFloor);
     row.innerHTML = `
-      <span class="waiting-floor">${floor}F</span>
+      <span class="waiting-floor">${floor < 0 ? `B${Math.abs(floor)}` : `${floor}F`}</span>
       <span class="waiting-label">${floor === game.stage.ceoFloor ? "대표실" : ""}</span>
       <strong>${floor === game.stage.ceoFloor ? "—" : `${waitingCount}명`}</strong>
     `;
@@ -162,7 +167,7 @@ function renderPassengers() {
     return;
   }
 
-  for (const passenger of game.passengers) {
+  for (const passenger of displayedPassengers ?? game.passengers) {
     const card = document.createElement("article");
     const isCeo = passenger.type === PASSENGER_TYPE.CEO;
     const signalClass = isCeo ? "" : getSignalClass(passenger);
@@ -196,10 +201,16 @@ function renderResult() {
 
   const isClear = game.status === "clear";
   elements.resultKicker.textContent = isClear ? "MISSION COMPLETE" : "OPERATION FAILED";
-  elements.resultTitle.textContent = isClear ? "대표실 도착 완료" : "업무방해 발생";
+  elements.resultTitle.textContent = isClear
+    ? "대표님이 무사히 출근했어요!"
+    : game.failureReason === "ceo_office_infiltration"
+      ? "산업 스파이!"
+      : "월급루팡!";
   elements.resultMessage.textContent = isClear
     ? `${game.turn}회의 이동으로 대표를 무사히 모셨습니다.`
-    : "직원의 상태가 0이 되었습니다. 이동 순서를 다시 설계해 보세요.";
+    : game.failureReason === "ceo_office_infiltration"
+      ? "직원은 대표실에 들어오면 안 됩니다."
+      : "남은 층수 안에 직원을 목표 층수로 이동시켜야 합니다.";
   elements.resultModal.classList.toggle("is-failure", !isClear);
   elements.resultModal.hidden = false;
 }
@@ -259,6 +270,9 @@ async function animateSegment(events) {
 
   for (const event of travelEvents) {
     visualFloor = event.floor;
+    displayedPassengers = event.type === "travel" && event.passengers
+      ? event.passengers
+      : null;
     isStopping = event.type === "stop";
     render();
     if (event.type === "stop") {
@@ -266,6 +280,7 @@ async function animateSegment(events) {
       isStopping = false;
       while (game.pendingStop) {
         const stepEvents = game.resolveStopStep();
+        displayedPassengers = null;
         render();
         if (stepEvents.length > 0) await wait(STOP_STEP_MS);
       }
@@ -279,6 +294,7 @@ async function animateSegment(events) {
   }
 
   if (!game.routeActive || game.status !== "playing") {
+    displayedPassengers = null;
     visualFloor = game.currentFloor;
     isAnimating = false;
     isStopping = false;
@@ -288,6 +304,7 @@ async function animateSegment(events) {
     isSelectingNextFloor = game.status === "playing";
     render();
   } else {
+    displayedPassengers = null;
     isStopping = true;
     render();
   }
@@ -302,6 +319,7 @@ function restart() {
   isSelectingNextFloor = true;
   travelDirection = 0;
   showResult = false;
+  displayedPassengers = null;
   activeTargetFloor = null;
   renderDigitalFloor(game.currentFloor);
   render();

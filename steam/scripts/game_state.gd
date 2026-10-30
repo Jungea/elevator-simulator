@@ -8,13 +8,15 @@ const TYPE_CEO := "ceo"
 const TYPE_EMPLOYEE := "employee"
 
 var status := STATUS_PLAYING
-var current_floor := 1
+var failure_reason := ""
+var current_floor := -2
 var selected_floor: Variant = null
 var target_floor: Variant = null
 var route_active := false
 var pending_stop: Variant = null
 var turn := 0
 var capacity := 3
+var min_floor := -2
 var floor_count := 10
 var ceo_floor := 10
 var passengers: Array[Dictionary] = []
@@ -25,18 +27,18 @@ func _init() -> void:
 
 func reset() -> void:
 	status = STATUS_PLAYING
-	current_floor = 1
+	failure_reason = ""
+	current_floor = -2
 	selected_floor = null
 	target_floor = null
 	route_active = false
 	pending_stop = null
 	turn = 0
 	passengers = [
-		_prepare({"id": "ceo", "type": TYPE_CEO, "name": "대표", "destination": 10}, 1),
-		_prepare({"id": "employee-a", "type": TYPE_EMPLOYEE, "name": "김대리", "destination": 3, "max_distance": 10}, 1),
+		_prepare({"id": "ceo", "type": TYPE_CEO, "name": "대표", "destination": 10}, -2),
 	]
 	waiting = {}
-	for floor in range(1, floor_count + 1):
+	for floor in range(min_floor, floor_count + 1):
 		waiting[floor] = []
 	waiting[2] = [{"id": "employee-b", "type": TYPE_EMPLOYEE, "name": "박사원", "destination": 5, "max_distance": 8}]
 	waiting[3] = [{"id": "employee-c", "type": TYPE_EMPLOYEE, "name": "이과장", "destination": 1, "max_distance": 8}]
@@ -50,7 +52,7 @@ func _prepare(passenger: Dictionary, boarding_floor: int) -> Dictionary:
 	return result
 
 func select_floor(floor: int) -> bool:
-	if status != STATUS_PLAYING or floor == current_floor or floor < 1 or floor > floor_count:
+	if status != STATUS_PLAYING or floor == current_floor or floor < min_floor or floor > floor_count:
 		return false
 	selected_floor = floor
 	return true
@@ -76,10 +78,23 @@ func _advance_move(include_depart: bool) -> Array[Dictionary]:
 	var next_floor := find_next_stop(target_floor)
 	var direction := signi(next_floor - current_floor)
 	var distance := absi(next_floor - current_floor)
+	var passed_distance := 0
 	for floor in range(current_floor + direction, next_floor + direction, direction):
 		events.append({"type": "travel", "floor": floor})
+		if floor != next_floor:
+			var pass_through := _apply_travel_distance(1, floor)
+			if pass_through["type"] == "game_over":
+				events.append(pass_through)
+				current_floor = floor
+				status = STATUS_GAME_OVER
+				route_active = false
+				target_floor = null
+				return events
+			if pass_through["type"] == "distance":
+				events.append(pass_through)
+			passed_distance += 1
 	current_floor = next_floor
-	pending_stop = {"floor": next_floor, "distance": distance, "stage": "alight"}
+	pending_stop = {"floor": next_floor, "distance": distance - passed_distance, "stage": "alight"}
 	events.append({"type": "stop", "floor": next_floor})
 	return events
 
@@ -106,6 +121,13 @@ func resolve_stop_step() -> Array[Dictionary]:
 	var distance: int = pending_stop["distance"]
 	var stage: String = pending_stop["stage"]
 	if stage == "alight":
+		if floor == ceo_floor and passengers.size() > 1:
+			status = STATUS_GAME_OVER
+			failure_reason = "ceo_office_infiltration"
+			pending_stop = null
+			route_active = false
+			target_floor = null
+			return [{"type": "game_over", "floor": floor, "reason": failure_reason}]
 		var alighting: Array[Dictionary] = []
 		for passenger in passengers:
 			if passenger["type"] == TYPE_EMPLOYEE and passenger["destination"] == floor:
@@ -130,7 +152,8 @@ func resolve_stop_step() -> Array[Dictionary]:
 				employees.append(passenger)
 				if passenger["remaining"] <= 0:
 					exhausted.append(passenger)
-			if not exhausted.is_empty():
+		if not exhausted.is_empty():
+			failure_reason = "employee_exhausted"
 			status = STATUS_GAME_OVER
 			route_active = false
 			target_floor = null
@@ -156,6 +179,19 @@ func resolve_stop_step() -> Array[Dictionary]:
 			events.append({"type": "board", "floor": floor, "passengers": boarding})
 		return events
 	return []
+
+func _apply_travel_distance(distance: int, floor: int) -> Dictionary:
+	var employees: Array[Dictionary] = []
+	var exhausted: Array[Dictionary] = []
+	for passenger in passengers:
+		if passenger["type"] == TYPE_EMPLOYEE:
+			passenger["remaining"] -= distance
+			employees.append(passenger)
+			if passenger["remaining"] <= 0:
+				exhausted.append(passenger)
+	if exhausted.is_empty():
+		return {"type": "distance", "floor": floor, "distance": distance, "passengers": employees}
+	return {"type": "game_over", "floor": floor, "passengers": exhausted}
 
 func waiting_count(floor: int) -> int:
 	return waiting[floor].size()
