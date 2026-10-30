@@ -96,6 +96,27 @@ export class ElevatorGame {
 
   }
 
+  snapshot() {
+    return {
+      status: this.status,
+      currentFloor: this.currentFloor,
+      selectedFloor: this.selectedFloor,
+      targetFloor: this.targetFloor,
+      routeActive: this.routeActive,
+      pendingStop: this.pendingStop,
+      turn: this.turn,
+      passengers: clone(this.passengers),
+      waitingPassengers: clone(this.waitingPassengers),
+      failureReason: this.failureReason,
+    };
+  }
+
+  restore(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.passengers) || !snapshot.waitingPassengers) return false;
+    Object.assign(this, clone(snapshot));
+    return true;
+  }
+
   floorSequence() {
     const floors = [];
     for (let floor = this.stage.minFloor ?? 1; floor <= (this.stage.maxFloor ?? this.stage.floorCount); floor += 1) {

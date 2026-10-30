@@ -10,6 +10,7 @@ const elements = {
   floorDisplay: document.querySelector("#floor-display"),
   moveButton: document.querySelector("#move-button"),
   restartButton: document.querySelector("#restart-button"),
+  newGameButton: document.querySelector("#new-game-button"),
   modalRestartButton: document.querySelector("#modal-restart-button"),
   gameStatus: document.querySelector("#game-status"),
   capacityLabel: document.querySelector("#capacity-label"),
@@ -20,7 +21,16 @@ const elements = {
   resultMessage: document.querySelector("#result-message"),
 };
 
+const SAVE_KEY = "elevator-simulator-save-v1";
 let game = new ElevatorGame();
+let savedUi = null;
+try {
+  const saved = JSON.parse(localStorage.getItem(SAVE_KEY) ?? "null");
+  game.restore(saved?.game ?? saved);
+  savedUi = saved?.ui ?? null;
+} catch {
+  localStorage.removeItem(SAVE_KEY);
+}
 let visualFloor = game.currentFloor;
 let isAnimating = false;
 let travelDirection = 0;
@@ -33,6 +43,14 @@ let isStopping = false;
 let floorInput = "";
 let basementInput = false;
 let invalidInputTimer = null;
+
+if (savedUi) {
+  visualFloor = savedUi.visualFloor ?? visualFloor;
+  activeTargetFloor = savedUi.activeTargetFloor ?? null;
+  floorInput = savedUi.floorInput ?? "";
+  basementInput = savedUi.basementInput ?? false;
+}
+showResult = game.status !== "playing";
 
 const FLOOR_TRAVEL_MS = 1200;
 const STOP_STEP_MS = 140;
@@ -302,6 +320,7 @@ function renderResult() {
 }
 
 function render() {
+  persistState();
   renderLedBackground(visualFloor, isAnimating ? travelDirection : 0);
   renderFloors();
   renderWaiting();
@@ -350,6 +369,15 @@ function render() {
   elements.gameStatus.classList.toggle("is-clear", game.status === "clear");
   elements.gameStatus.classList.toggle("is-over", game.status === "game_over");
 }
+
+function persistState() {
+  localStorage.setItem(SAVE_KEY, JSON.stringify({
+    game: game.snapshot(),
+    ui: { visualFloor, activeTargetFloor, floorInput, basementInput },
+  }));
+}
+
+window.addEventListener("beforeunload", persistState);
 
 function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
@@ -409,6 +437,8 @@ async function animateSegment(events) {
 
 function restart() {
   game = new ElevatorGame();
+  localStorage.removeItem(SAVE_KEY);
+  savedUi = null;
   floorInput = "";
   basementInput = false;
   visualFloor = game.currentFloor;
@@ -449,7 +479,16 @@ elements.moveButton.addEventListener("click", async () => {
   await animateSegment(events);
 });
 elements.restartButton.addEventListener("click", restart);
+elements.newGameButton.addEventListener("click", restart);
 elements.modalRestartButton.addEventListener("click", restart);
 
 render();
+
+if (savedUi && game.status === "playing" && game.routeActive && visualFloor !== game.currentFloor) {
+  game.currentFloor = visualFloor;
+  game.pendingStop = null;
+  isAnimating = true;
+  travelDirection = Math.sign(game.targetFloor - game.currentFloor);
+  void animateSegment(game.continueMove());
+}
 
