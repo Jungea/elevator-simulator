@@ -13,7 +13,7 @@
 - HTML
 - CSS
 - JavaScript ES Modules
-- Tabler Icons Webfont
+- Lucide Icons (CDN)
 - 브라우저 정적 실행
 - Vercel 배포
 - 현재 구현 완료
@@ -159,7 +159,7 @@ vercel deploy --prod --cwd web
 
 ## 아이콘
 
-웹 UI는 단색 SVG 기반의 Tabler Icons를 사용한다. 현재는 필요한 아이콘을 Webfont로 불러오며, 아이콘 색상은 CSS `currentColor` 기준으로 화면 상태에 맞춰 바뀐다.
+웹 UI는 단색 SVG 기반의 Lucide Icons를 사용한다. 아이콘은 CDN에서 불러오고, `data-lucide` 속성으로 렌더링한다. 아이콘 색상은 CSS `currentColor` 기준으로 화면 상태에 맞춰 바뀐다.
 
 ## 개발 원칙
 
