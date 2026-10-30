@@ -25,6 +25,23 @@ test("이동 경로에 대기자가 있고 빈자리가 있으면 자동 정차�
   );
 });
 
+test("중간 정차마다 닫기 전에는 다음 층으로 진행하지 않는다", () => {
+  const game = new ElevatorGame();
+  game.selectFloor(5);
+
+  game.beginMove();
+  assert.equal(game.currentFloor, 2);
+  assert.equal(game.routeActive, true);
+  assert.equal(game.getWaitingCount(3), 1);
+
+  while (game.pendingStop) game.resolveStopStep();
+  assert.equal(game.passengers.some((passenger) => passenger.name === "박사원"), true);
+  game.continueMove();
+  while (game.pendingStop) game.resolveStopStep();
+  assert.equal(game.currentFloor, 3);
+  assert.equal(game.getWaitingCount(3), 0);
+});
+
 test("목적층 도착 직원은 상태 차감 전에 하차한다", () => {
   const game = new ElevatorGame();
   game.selectFloor(3);

@@ -84,6 +84,8 @@ export class ElevatorGame {
     this.currentFloor = this.stage.initialFloor;
     this.selectedFloor = null;
     this.targetFloor = null;
+    this.routeActive = false;
+    this.pendingStop = null;
     this.turn = 0;
     this.passengers = this.stage.initialPassengers.map((passenger) =>
       preparePassenger(passenger, this.stage.initialFloor),
@@ -152,6 +154,176 @@ export class ElevatorGame {
     this.selectedFloor = null;
     this.targetFloor = null;
     return events;
+  }
+
+  beginMove() {
+    if (this.status !== "playing" || this.selectedFloor === null) return [];
+
+    this.turn += 1;
+    this.targetFloor = this.selectedFloor;
+    this.selectedFloor = null;
+    this.routeActive = true;
+    return this.advanceMove(true);
+  }
+
+  continueMove() {
+    if (this.status !== "playing" || !this.routeActive || this.pendingStop) return [];
+    return this.advanceMove(false);
+  }
+
+  advanceMove(includeDepart) {
+    const events = [];
+    if (includeDepart) {
+      events.push({
+        type: "depart",
+        floor: this.currentFloor,
+        targetFloor: this.targetFloor,
+        message: `${this.currentFloor}F에서 ${this.targetFloor}F로 이동합니다.`,
+      });
+    }
+
+    const nextFloor = this.findNextStop(this.targetFloor);
+    const distance = Math.abs(nextFloor - this.currentFloor);
+    const direction = Math.sign(nextFloor - this.currentFloor);
+
+    for (
+      let floor = this.currentFloor + direction;
+      direction > 0 ? floor <= nextFloor : floor >= nextFloor;
+      floor += direction
+    ) {
+      events.push({ type: "travel", floor });
+    }
+
+    this.currentFloor = nextFloor;
+    this.pendingStop = { floor: nextFloor, distance, stage: "alight" };
+    events.push({
+      type: "stop",
+      floor: nextFloor,
+      distance,
+      message: `${nextFloor}F에 정차했습니다. (${distance}층 이동)`,
+    });
+
+    return events;
+  }
+
+  resolveStopStep() {
+    if (!this.pendingStop) return [];
+
+    const { floor, distance } = this.pendingStop;
+    if (this.pendingStop.stage === "alight") {
+      const alighting = this.passengers.filter(
+        (passenger) =>
+          passenger.type === PASSENGER_TYPE.EMPLOYEE &&
+          passenger.destinationFloor === floor,
+      );
+      const alightingIds = new Set(alighting.map((passenger) => passenger.id));
+      this.passengers = this.passengers.filter(
+        (passenger) => !alightingIds.has(passenger.id),
+      );
+      this.pendingStop.stage = "decrement";
+      return alighting.length > 0
+        ? [
+            {
+              type: "alight",
+              floor,
+              passengers: clone(alighting),
+              message: `${alighting.map((passenger) => passenger.name).join(", ")} 하차`,
+            },
+          ]
+        : [];
+    }
+
+    if (this.pendingStop.stage === "decrement") {
+      const ceo = this.passengers.find(
+        (passenger) => passenger.type === PASSENGER_TYPE.CEO,
+      );
+      if (floor === this.stage.ceoFloor && ceo && this.passengers.length === 1) {
+        this.passengers = [];
+        this.status = "clear";
+        this.pendingStop = null;
+        this.routeActive = false;
+        this.targetFloor = null;
+        return [
+          {
+            type: "clear",
+            floor,
+            message: "대표가 혼자 대표실에 도착했습니다. STAGE CLEAR!",
+          },
+        ];
+      }
+
+      const employees = this.passengers.filter(
+        (passenger) => passenger.type === PASSENGER_TYPE.EMPLOYEE,
+      );
+      for (const employee of employees) {
+        employee.remainingDistance -= distance;
+      }
+      const exhausted = employees.filter(
+        (employee) => employee.remainingDistance <= 0,
+      );
+      this.pendingStop.stage = exhausted.length > 0 ? "done" : "board";
+
+      if (exhausted.length > 0) {
+        this.status = "game_over";
+        this.pendingStop = null;
+        this.routeActive = false;
+        this.targetFloor = null;
+        return [
+          {
+            type: "game_over",
+            floor,
+            passengers: clone(exhausted),
+            message: `${exhausted.map((passenger) => passenger.name).join(", ")}의 상태가 바닥났습니다.`,
+          },
+        ];
+      }
+
+      return employees.length > 0
+        ? [
+            {
+              type: "distance",
+              floor,
+              distance,
+              passengers: clone(employees),
+              message: `탑승 직원의 상태가 ${distance}만큼 감소했습니다.`,
+            },
+          ]
+        : [];
+    }
+
+    if (this.pendingStop.stage === "board") {
+      const events = [];
+      if (floor !== this.stage.ceoFloor) {
+        const availableSeats = this.stage.capacity - this.passengers.length;
+        const waiting = this.waitingPassengers[floor];
+        const boarding = waiting
+          .splice(0, Math.max(0, availableSeats))
+          .map((passenger) => preparePassenger(passenger, floor));
+        if (boarding.length > 0) {
+          this.passengers.push(...boarding);
+          events.push({
+            type: "board",
+            floor,
+            passengers: clone(boarding),
+            message: `${boarding.map((passenger) => passenger.name).join(", ")} 탑승`,
+          });
+        }
+      }
+      this.pendingStop = null;
+      if (this.currentFloor === this.targetFloor) {
+        events.push({
+          type: "arrive",
+          floor: this.currentFloor,
+          message: `목표층 ${this.currentFloor}F에 도착했습니다.`,
+        });
+        this.routeActive = false;
+        this.targetFloor = null;
+      }
+      return events;
+    }
+
+    this.pendingStop = null;
+    return [];
   }
 
   findNextStop(targetFloor) {

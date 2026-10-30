@@ -23,11 +23,12 @@ let isAnimating = false;
 let travelDirection = 0;
 let showResult = false;
 let activeTargetFloor = null;
-let travelStartFloor = game.currentFloor;
+let isAtDestinationStop = false;
+let isSelectingNextFloor = true;
 let isStopping = false;
 
-const FLOOR_TRAVEL_MS = 350;
-const STOP_DWELL_MS = 900;
+const FLOOR_TRAVEL_MS = 1200;
+const STOP_STEP_MS = 140;
 
 const DIGITAL_SEGMENTS = {
   0: ["a", "b", "c", "d", "e", "f"],
@@ -41,6 +42,25 @@ const DIGITAL_SEGMENTS = {
   8: ["a", "b", "c", "d", "e", "f", "g"],
   9: ["a", "b", "c", "d", "f", "g"],
 };
+
+const PASSENGER_EMOJIS = [
+  "🧑‍💼",
+  "👩‍💼",
+  "👨‍💻",
+  "👩‍🔬",
+  "🧑‍🔧",
+  "👨‍🚀",
+  "👩‍🎨",
+  "🧑‍🏫",
+];
+
+function getPassengerEmoji(passenger) {
+  const seed = [...passenger.id].reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return PASSENGER_EMOJIS[seed % PASSENGER_EMOJIS.length];
+}
 
 function renderDigitalFloor(floor) {
   const value = String(floor).padStart(2, "0");
@@ -82,19 +102,21 @@ function renderFloors() {
 
   for (const floor of floorOrder) {
     const button = document.createElement("button");
-    const currentButtonFloor = isAnimating
-      ? travelStartFloor
-      : game.currentFloor;
-    const isCurrent = floor === currentButtonFloor;
+    const isMovingTarget = isAnimating && floor === activeTargetFloor;
+    const isCurrentFloor = floor === game.currentFloor;
+    const isCurrent = isMovingTarget || (!isAnimating && isCurrentFloor);
+    const isAvailable =
+      isSelectingNextFloor && game.selectedFloor === null && !isCurrentFloor;
     const isSelected =
-      floor === game.selectedFloor || floor === activeTargetFloor;
+      !isMovingTarget && (floor === game.selectedFloor || floor === activeTargetFloor);
     const waitingCount = game.getWaitingCount(floor);
 
     button.type = "button";
     button.className = "floor-row";
     button.classList.toggle("is-current", isCurrent);
+    button.classList.toggle("is-available", isAvailable);
     button.classList.toggle("is-selected", isSelected);
-    button.disabled = isCurrent || game.status !== "playing" || isAnimating;
+    button.disabled = isCurrentFloor || game.status !== "playing" || isAnimating;
     button.setAttribute("aria-pressed", String(isSelected));
     button.innerHTML = `
       <span class="floor-number">${floor}</span>
@@ -143,17 +165,19 @@ function renderPassengers() {
   for (const passenger of game.passengers) {
     const card = document.createElement("article");
     const isCeo = passenger.type === PASSENGER_TYPE.CEO;
-    card.className = `passenger-card${isCeo ? " is-ceo" : ""}`;
+    const signalClass = isCeo ? "" : getSignalClass(passenger);
+    const avatar = `<div class="passenger-avatar" aria-hidden="true">${getPassengerEmoji(passenger)}</div>`;
+    card.className = `passenger-card${isCeo ? " is-ceo" : ""}${signalClass ? ` status-${signalClass}` : ""}`;
 
     const status = isCeo
       ? ""
       : `<div class="passenger-condition">
-          <i class="signal ${getSignalClass(passenger)}"></i>
+          <i class="signal ${signalClass}"></i>
           <strong>${passenger.remainingDistance}/${passenger.maxDistance}</strong>
         </div>`;
 
     card.innerHTML = `
-      <div class="passenger-avatar" aria-hidden="true">${isCeo ? "代" : passenger.name[0]}</div>
+      ${avatar}
       <div class="passenger-copy"><strong>${passenger.name}</strong></div>
       <div class="passenger-destination">
         <strong>${passenger.destinationFloor}F</strong>
@@ -189,15 +213,22 @@ function render() {
   renderDigitalFloor(visualFloor);
   elements.capacityLabel.textContent = `${game.passengers.length} / ${game.stage.capacity}`;
   elements.moveButton.disabled =
-    game.selectedFloor === null || game.status !== "playing" || isAnimating;
+    game.status !== "playing" || (isAnimating && !isStopping) ||
+    (!isStopping && game.selectedFloor === null);
   elements.moveButton.classList.toggle("is-stopping", isStopping);
-  const isMoving = isAnimating && travelDirection !== 0;
+  elements.moveButton.classList.toggle(
+    "is-ready",
+    !isAnimating && game.status === "playing" && game.selectedFloor !== null,
+  );
+  const hasDirection = isAnimating && travelDirection !== 0 && !isAtDestinationStop;
+  const isMoving = hasDirection && !isStopping;
   const directionIcon = document.createElement("i");
   directionIcon.dataset.lucide = travelDirection > 0 ? "arrow-up" : "arrow-down";
   directionIcon.className = "direction-arrow";
   directionIcon.setAttribute("aria-hidden", "true");
   elements.directionLabel.replaceChildren(directionIcon);
-  elements.directionLabel.classList.toggle("is-down", isMoving && travelDirection < 0);
+  elements.directionLabel.classList.toggle("is-down", hasDirection && travelDirection < 0);
+  elements.directionLabel.classList.toggle("is-visible", hasDirection);
   elements.directionLabel.classList.toggle("is-moving", isMoving);
   elements.directionLabel.setAttribute(
     "aria-label",
@@ -217,7 +248,7 @@ function wait(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-async function animateTravel(events) {
+async function animateSegment(events) {
   const travelEvents = events.filter(
     (event) => event.type === "travel" || event.type === "stop",
   );
@@ -230,15 +261,36 @@ async function animateTravel(events) {
     visualFloor = event.floor;
     isStopping = event.type === "stop";
     render();
-    await wait(event.type === "stop" ? STOP_DWELL_MS : FLOOR_TRAVEL_MS);
+    if (event.type === "stop") {
+      isAtDestinationStop = game.currentFloor === game.targetFloor;
+      isStopping = false;
+      while (game.pendingStop) {
+        const stepEvents = game.resolveStopStep();
+        render();
+        if (stepEvents.length > 0) await wait(STOP_STEP_MS);
+      }
+      if (game.routeActive && game.status === "playing") {
+        isStopping = true;
+        render();
+      }
+      break;
+    }
+    await wait(FLOOR_TRAVEL_MS);
   }
 
-  visualFloor = game.currentFloor;
-  isAnimating = false;
-  isStopping = false;
-  showResult = true;
-  activeTargetFloor = null;
-  render();
+  if (!game.routeActive || game.status !== "playing") {
+    visualFloor = game.currentFloor;
+    isAnimating = false;
+    isStopping = false;
+    showResult = true;
+    activeTargetFloor = null;
+    isAtDestinationStop = false;
+    isSelectingNextFloor = game.status === "playing";
+    render();
+  } else {
+    isStopping = true;
+    render();
+  }
 }
 
 function restart() {
@@ -246,23 +298,38 @@ function restart() {
   visualFloor = game.currentFloor;
   isAnimating = false;
   isStopping = false;
+  isAtDestinationStop = false;
+  isSelectingNextFloor = true;
   travelDirection = 0;
   showResult = false;
   activeTargetFloor = null;
-  travelStartFloor = game.currentFloor;
   renderDigitalFloor(game.currentFloor);
   render();
 }
 
 elements.moveButton.addEventListener("click", async () => {
+  if (isStopping) {
+    isStopping = false;
+    if (!game.routeActive) {
+      isAnimating = false;
+      showResult = true;
+      activeTargetFloor = null;
+      isAtDestinationStop = false;
+      render();
+      return;
+    }
+    const events = game.continueMove();
+    await animateSegment(events);
+    return;
+  }
   if (isAnimating) return;
   const selectedFloor = game.selectedFloor;
   if (selectedFloor === null) return;
-  travelStartFloor = game.currentFloor;
   activeTargetFloor = selectedFloor;
+  isSelectingNextFloor = false;
   travelDirection = Math.sign(selectedFloor - game.currentFloor);
-  const events = game.move();
-  await animateTravel(events);
+  const events = game.beginMove();
+  await animateSegment(events);
 });
 elements.restartButton.addEventListener("click", restart);
 elements.modalRestartButton.addEventListener("click", restart);
