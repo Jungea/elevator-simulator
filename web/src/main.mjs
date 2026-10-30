@@ -2,6 +2,7 @@ import { ElevatorGame, PASSENGER_TYPE } from "./game.mjs";
 
 const elements = {
   floorList: document.querySelector("#floor-list"),
+  floorInputDisplay: document.querySelector("#floor-input-display"),
   waitingList: document.querySelector("#waiting-list"),
   passengerList: document.querySelector("#passenger-list"),
   currentFloor: document.querySelector("#current-floor"),
@@ -29,6 +30,9 @@ let activeTargetFloor = null;
 let isAtDestinationStop = false;
 let isSelectingNextFloor = true;
 let isStopping = false;
+let floorInput = "";
+let basementInput = false;
+let invalidInputTimer = null;
 
 const FLOOR_TRAVEL_MS = 1200;
 const STOP_STEP_MS = 140;
@@ -45,6 +49,7 @@ const DOT_MATRIX = {
   8: ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
   9: ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
   "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+  "_": ["00000", "00000", "00000", "00000", "00000", "00000", "11111"],
 };
 
 const DOT_ARROWS = {
@@ -94,6 +99,11 @@ function renderDigitalFloor(floor) {
       elements.currentFloor.append(spacer);
     }
   }
+}
+
+function renderInputDisplay(value) {
+  const text = value || "--";
+  elements.floorInputDisplay.textContent = text;
 }
 
 function renderLedBackground(floor, direction = 0) {
@@ -159,48 +169,57 @@ function getSignalClass(passenger) {
 
 function renderFloors() {
   elements.floorList.replaceChildren();
-  const minFloor = game.stage.minFloor ?? 1;
-  const maxFloor = game.stage.maxFloor ?? game.stage.floorCount;
-  const leftColumn = [4, 3, 2, 1, -1, -2].filter((floor) => floor >= minFloor && floor <= maxFloor);
-  const rightColumn = [10, 9, 8, 7, 6, 5].filter((floor) => floor >= minFloor && floor <= maxFloor);
-  const floorOrder = [];
-  for (let row = 0; row < Math.max(leftColumn.length, rightColumn.length); row += 1) {
-    if (leftColumn[row] !== undefined) floorOrder.push(leftColumn[row]);
-    if (rightColumn[row] !== undefined) floorOrder.push(rightColumn[row]);
-  }
-
-  for (const floor of floorOrder) {
+  renderInputDisplay(floorInput || basementInput ? `${basementInput ? "B" : ""}${floorInput || (basementInput ? "_" : "")}` : "--");
+  const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "B", "0", "C"];
+  for (const key of keys) {
     const button = document.createElement("button");
-    const isMovingTarget = isAnimating && floor === activeTargetFloor;
-    const isCurrentFloor = floor === game.currentFloor;
-    const isCurrent = isMovingTarget || (!isAnimating && isCurrentFloor);
-    const isAvailable =
-      isSelectingNextFloor && game.selectedFloor === null && !isCurrentFloor;
-    const isSelected =
-      !isMovingTarget && (floor === game.selectedFloor || floor === activeTargetFloor);
-    const waitingCount = game.getWaitingCount(floor);
-
     button.type = "button";
-    button.className = "floor-row";
-    button.classList.toggle("is-current", isCurrent);
-    button.classList.toggle("is-available", isAvailable);
-    button.classList.toggle("is-selected", isSelected);
-    button.disabled = isCurrentFloor || game.status !== "playing" || isAnimating;
-    button.setAttribute("aria-pressed", String(isSelected));
-    button.innerHTML = `
-      <span class="floor-number">${floor < 0 ? `B${Math.abs(floor)}` : floor}</span>
-    `;
-    button.setAttribute(
-      "aria-label",
-      `${floor}층${floor === game.stage.ceoFloor ? " 대표실" : ""}${waitingCount > 0 ? ` 대기 ${waitingCount}명` : ""}`,
-    );
-    button.addEventListener("click", () => {
-      game.selectFloor(floor);
-      activeTargetFloor = floor;
-      render();
-    });
+    button.className = "floor-row keypad-button";
+    button.textContent = key;
+    button.disabled = game.status !== "playing" || isAnimating;
+    button.addEventListener("click", () => handleFloorKey(key));
     elements.floorList.append(button);
   }
+}
+
+function handleFloorKey(key) {
+  if (!isAnimating && game.selectedFloor === null && floorInput) {
+    floorInput = "";
+    basementInput = false;
+  }
+  if (key === "C") {
+    floorInput = "";
+    basementInput = false;
+  } else if (key === "B") {
+    floorInput = "";
+    basementInput = true;
+  } else if (floorInput.length < 2) {
+    if (!basementInput && floorInput === "" && key === "0") return;
+    floorInput += key;
+    const floor = basementInput ? -Number(floorInput) : Number(floorInput);
+    if (floor < (game.stage.minFloor ?? 1) || floor > (game.stage.maxFloor ?? game.stage.floorCount) || floor === 0 || floor === game.currentFloor) {
+      const attemptedInput = `${basementInput ? "B" : ""}${floorInput}`;
+      floorInput = "";
+      basementInput = false;
+      game.selectedFloor = null;
+      activeTargetFloor = null;
+      if (invalidInputTimer) clearTimeout(invalidInputTimer);
+      elements.floorInputDisplay.textContent = attemptedInput;
+      elements.floorInputDisplay.classList.add("is-invalid");
+      invalidInputTimer = setTimeout(() => {
+        invalidInputTimer = setTimeout(() => {
+          invalidInputTimer = null;
+          elements.floorInputDisplay.classList.remove("is-invalid");
+          render();
+        }, 500);
+      }, 250);
+      return;
+    } else {
+      game.selectFloor(floor);
+      activeTargetFloor = floor;
+    }
+  }
+  render();
 }
 
 function renderWaiting() {
@@ -390,6 +409,8 @@ async function animateSegment(events) {
 
 function restart() {
   game = new ElevatorGame();
+  floorInput = "";
+  basementInput = false;
   visualFloor = game.currentFloor;
   isAnimating = false;
   isStopping = false;

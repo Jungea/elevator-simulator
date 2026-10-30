@@ -281,8 +281,39 @@ h2 {
 
 .floor-list {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 13px;
+}
+
+.keypad-button {
+  min-height: 62px;
+  font-size: 1.8rem;
+  font-weight: 800;
+}
+
+.floor-input-display {
+  display: flex;
+  min-height: 76px;
+  margin-bottom: 13px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--red);
+  background: #0b0f15;
+  gap: 0.45rem;
+  font-family: "Black Han Sans", "Arial Black", sans-serif;
+  font-size: 2.7rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 18px var(--red-glow);
+}
+
+.floor-input-display.is-invalid {
+  color: #fff;
+  background: var(--red);
+  border-color: var(--red);
+  box-shadow: 0 0 24px var(--red-glow);
 }
 
 .floor-row {
