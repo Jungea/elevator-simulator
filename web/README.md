@@ -1,10 +1,14 @@
 # 엘베 시뮬레이터 — Web Prototype
 
-Release 0 규칙을 검증하기 위한 빌드 없는 정적 웹 프로토타입이다.
+Release 0 규칙을 검증하기 위한 빌드 없는 정적 웹 프로토타입이다. `index.html`은 외부 리소스와 ES Module을 사용하지 않으므로 서버 없이 직접 열 수 있다.
 
 ## 로컬 실행
 
-ES Module을 사용하므로 파일을 직접 열지 말고 정적 서버로 실행한다.
+### 파일을 직접 열기
+
+`web/index.html`을 파일 탐색기에서 더블클릭한다. 게임 저장은 브라우저의 localStorage에 기록된다.
+
+### 정적 서버로 실행하기
 
 ```powershell
 node web/tools/serve.mjs

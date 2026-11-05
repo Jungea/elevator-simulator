@@ -8,11 +8,7 @@
       content="직원들의 상태를 관리하며 대표를 혼자 대표실까지 모시는 엘리베이터 경로 퍼즐"
     />
     <title>엘베 시뮬레이터</title>
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
     <link rel="stylesheet" href="./styles.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&display=swap" rel="stylesheet" />
   </head>
   <body>
     <main class="app-shell">
@@ -27,7 +23,7 @@
         <div class="topbar-actions">
           <span id="game-status" class="status-badge" title="운행 중" aria-label="운행 중"></span>
           <button id="restart-button" class="text-button" type="button" title="새 게임" aria-label="새 게임">
-            <i data-lucide="refresh-cw" aria-hidden="true"></i>
+            <span aria-hidden="true">↻</span>
           </button>
         </div>
       </header>
@@ -53,9 +49,7 @@
           <div class="floor-confirm">
             <button id="move-button" class="move-button" type="button" aria-label="닫기" title="닫기" disabled>
               <span class="door-close-icon" aria-hidden="true">
-                <i data-lucide="chevron-right"></i>
-                <i data-lucide="letter-i" class="door-center-line"></i>
-                <i data-lucide="chevron-left"></i>
+                <span aria-hidden="true">›│‹</span>
               </span>
             </button>
           </div>
@@ -94,7 +88,7 @@
               <h2 id="waiting-title">대기 직원</h2>
             </div>
             <span class="waiting-private" title="목적층 비공개" aria-label="목적층 비공개">
-              <i data-lucide="circle-help" aria-hidden="true"></i>
+              <span aria-hidden="true">?</span>
             </span>
           </div>
           <div id="waiting-list" class="waiting-list"></div>
@@ -113,7 +107,9 @@
       </div>
     </div>
 
-    <script type="module" src="./src/main.mjs"></script>
+    <!-- 일반 스크립트만 사용해 file://로 직접 열어도 실행됩니다. -->
+    <script src="./src/game.js"></script>
+    <script src="./src/main.js"></script>
   </body>
 </html>
 
